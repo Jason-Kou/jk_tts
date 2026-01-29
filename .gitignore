@@ -4,6 +4,7 @@ __pycache__/
 build/
 dist/
 wheels/
+input/
 *.egg-info
 *.wav
 # Keep reference voice files
