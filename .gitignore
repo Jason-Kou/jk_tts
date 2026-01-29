@@ -6,6 +6,8 @@ dist/
 wheels/
 *.egg-info
 *.wav
+# Keep reference voice files
+!voices/*.wav
 
 # Virtual environments
 .venv
