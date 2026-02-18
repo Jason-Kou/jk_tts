@@ -157,7 +157,18 @@ def process_file(filepath: Path, model, mode: str, voice: str = DEFAULT_VOICE):
     merged = mx.concatenate(all_audio, axis=0)
     output_file = str(OUTPUT_DIR / f"{stem}.wav")
     audio_write(output_file, np.array(merged), model.sample_rate, format="wav")
-    print(f"  -> {output_file}")
+
+    # Boost volume by 50% (Qwen3-TTS output is too quiet)
+    boosted_file = str(OUTPUT_DIR / f"{stem}_boosted.wav")
+    import subprocess as _sp
+    _sp.run(["ffmpeg", "-y", "-i", output_file, "-filter:a", "volume=1.5", boosted_file],
+            capture_output=True)
+    if Path(boosted_file).exists():
+        Path(output_file).unlink()
+        Path(boosted_file).rename(output_file)
+        print(f"  -> {output_file} (volume boosted 1.5x)")
+    else:
+        print(f"  -> {output_file} (volume boost failed, using original)")
 
     # Clean up segment files
     for f in seg_files:
