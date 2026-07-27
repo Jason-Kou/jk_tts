@@ -16,6 +16,9 @@ from mlx_audio.audio_io import write as audio_write
 from mlx_audio.tts.generate import generate_audio, load_audio
 from mlx_audio.tts.utils import load_model
 
+from cosyvoice3_backend import merge_wavs_with_ffmpeg, synthesize_segments as synthesize_cosyvoice3_segments
+from moss_tts_backend import moss_model_for_mode, synthesize_segments as synthesize_moss_segments
+
 # ---- Config ----
 INPUT_DIR = Path(__file__).parent / "input"
 OUTPUT_DIR = Path(__file__).parent / "output"
@@ -24,12 +27,28 @@ VOICES_DIR = Path(__file__).parent / "voices"
 MODELS = {
     "voice_design": "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16",
     "base": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
+    "cosyvoice3": "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
+    "moss_nano": "mlx-community/MOSS-TTS-Nano-100M",
+    "moss_local": "OpenMOSS-Team/MOSS-TTS-Local-Transformer",
 }
 
 VOICE_PROFILES = {
     "jason": {
         "ref_audio": str(VOICES_DIR / "jason.wav"),
         "ref_text": "大家好,我是Jason.欢迎回到我的频道.今天给大家讲一段Tesla的故事",
+    },
+    "en_male": {   # ElevenLabs clone, ported from the CosyVoice pipeline
+        "ref_audio": str(VOICES_DIR / "en_male.wav"),
+        "ref_text": (
+            "Need to send HDMI audio to a soundbar, receiver, or speakers? "
+            "This 4K 60Hz HDMI audio extractor JTD-322 separates audio from your "
+            "HDMI signal while still passing video to your TV, monitor, or projector."
+        ),
+        "lang": "english",
+    },
+    "official_female": {
+        "ref_audio": "/Users/jk-agent-mac/3_coding/CosyVoice/asset/zero_shot_prompt.wav",
+        "ref_text": "希望你以后能够做的比我还好呦。",
     },
 }
 
@@ -39,6 +58,15 @@ DEFAULT_INSTRUCT = "A cheerful young female voice with clear pronunciation and m
 
 
 MAX_SEGMENT_CHARS = 200
+
+
+def join_segment(buffer: str, part: str) -> str:
+    """Chinese punctuation carries its own pause; English needs the space back,
+    or sentences glue into non-words ("Controller.Once") the model chokes on."""
+    if not buffer:
+        return part
+    sep = "" if "\u4e00" <= buffer[-1] <= "\u9fff" or buffer[-1] in "。！？；，" else " "
+    return f"{buffer}{sep}{part}"
 
 
 def split_into_sentences(text: str) -> list[str]:
@@ -70,7 +98,7 @@ def split_text(text: str) -> list[str]:
                 segments.append(buffer)
                 buffer = para
             else:
-                buffer = f"{buffer}{para}" if buffer else para
+                buffer = join_segment(buffer, para)
         else:
             # Long paragraph: flush buffer first, then split into sentences
             if buffer:
@@ -81,7 +109,7 @@ def split_text(text: str) -> list[str]:
                     segments.append(buffer)
                     buffer = sentence
                 else:
-                    buffer = f"{buffer}{sentence}" if buffer else sentence
+                    buffer = join_segment(buffer, sentence)
 
     if buffer:
         segments.append(buffer)
@@ -117,34 +145,58 @@ def process_file(filepath: Path, model, mode: str, voice: str = DEFAULT_VOICE):
     stem = filepath.stem
     print(f"  Split into {len(segments)} segment(s)")
 
-    # Generate each segment, skipping existing ones
-    for i, segment in enumerate(segments):
-        seg_file = OUTPUT_DIR / f"{stem}_seg_{i:03d}.wav"
+    seg_files = [OUTPUT_DIR / f"{stem}_seg_{i:03d}.wav" for i in range(len(segments))]
 
-        if seg_file.exists():
-            print(f"\n  --- Segment {i+1}/{len(segments)} --- SKIP (already exists)")
-            continue
+    if mode in ("cosyvoice3", "moss_nano", "moss_local"):
+        missing_segments = []
+        missing_files = []
+        for segment, seg_file in zip(segments, seg_files):
+            if seg_file.exists():
+                print(f"  SKIP {seg_file.name} (already exists)")
+                continue
+            missing_segments.append(segment)
+            missing_files.append(seg_file)
+        if missing_segments:
+            if mode == "cosyvoice3":
+                synthesize_cosyvoice3_segments(missing_segments, missing_files, VOICE_PROFILES[voice])
+            else:
+                synthesize_moss_segments(
+                    missing_segments,
+                    missing_files,
+                    VOICE_PROFILES[voice],
+                    moss_model_for_mode(mode),
+                )
+    else:
+        # Generate each segment, skipping existing ones
+        for i, segment in enumerate(segments):
+            seg_file = seg_files[i]
 
-        print(f"\n  --- Segment {i+1}/{len(segments)} ---")
-        print(f"  {segment[:80]}...")
+            if seg_file.exists():
+                print(f"\n  --- Segment {i+1}/{len(segments)} --- SKIP (already exists)")
+                continue
 
-        seg_prefix = str(OUTPUT_DIR / f"{stem}_seg_{i:03d}")
+            print(f"\n  --- Segment {i+1}/{len(segments)} ---")
+            print(f"  {segment[:80]}...")
 
-        kwargs = {
-            "model": model,
-            "text": segment,
-            "file_prefix": seg_prefix,
-            "join_audio": True,
-            "max_tokens": 4096,
-            "lang_code": "chinese",
-        }
+            seg_prefix = str(OUTPUT_DIR / f"{stem}_seg_{i:03d}")
 
-        if mode == "voice_design":
-            kwargs["instruct"] = DEFAULT_INSTRUCT
-        elif mode == "base":
-            kwargs.update(VOICE_PROFILES[voice])
+            profile = dict(VOICE_PROFILES[voice])
+            kwargs = {
+                "model": model,
+                "text": segment,
+                "file_prefix": seg_prefix,
+                "join_audio": True,
+                "max_tokens": 4096,
+                # an English voice narrating in chinese mode picks up an accent
+                "lang_code": profile.pop("lang", "chinese"),
+            }
 
-        generate_audio(**kwargs)
+            if mode == "voice_design":
+                kwargs["instruct"] = DEFAULT_INSTRUCT
+            elif mode == "base":
+                kwargs.update(profile)
+
+            generate_audio(**kwargs)
 
     # Merge all segment files into one
     seg_files = sorted(OUTPUT_DIR.glob(f"{stem}_seg_*.wav"))
@@ -153,22 +205,27 @@ def process_file(filepath: Path, model, mode: str, voice: str = DEFAULT_VOICE):
         return
 
     print(f"\n  Merging {len(seg_files)} segment(s)...")
-    all_audio = [load_audio(str(f), sample_rate=model.sample_rate) for f in seg_files]
-    merged = mx.concatenate(all_audio, axis=0)
     output_file = str(OUTPUT_DIR / f"{stem}.wav")
-    audio_write(output_file, np.array(merged), model.sample_rate, format="wav")
 
-    # Boost volume by 80% (Qwen3-TTS output is too quiet)
-    boosted_file = str(OUTPUT_DIR / f"{stem}_boosted.wav")
-    import subprocess as _sp
-    _sp.run(["ffmpeg", "-y", "-i", output_file, "-filter:a", "volume=1.8", boosted_file],
-            capture_output=True)
-    if Path(boosted_file).exists():
-        Path(output_file).unlink()
-        Path(boosted_file).rename(output_file)
-        print(f"  -> {output_file} (volume boosted 1.8x)")
+    if mode in ("cosyvoice3", "moss_nano", "moss_local"):
+        merge_wavs_with_ffmpeg(seg_files, Path(output_file), volume=1.0)
+        print(f"  -> {output_file} ({mode}, no volume boost)")
     else:
-        print(f"  -> {output_file} (volume boost failed, using original)")
+        all_audio = [load_audio(str(f), sample_rate=model.sample_rate) for f in seg_files]
+        merged = mx.concatenate(all_audio, axis=0)
+        audio_write(output_file, np.array(merged), model.sample_rate, format="wav")
+
+        # Boost volume by 80% (Qwen3-TTS output is too quiet)
+        boosted_file = str(OUTPUT_DIR / f"{stem}_boosted.wav")
+        import subprocess as _sp
+        _sp.run(["ffmpeg", "-y", "-i", output_file, "-filter:a", "volume=1.8", boosted_file],
+                capture_output=True)
+        if Path(boosted_file).exists():
+            Path(output_file).unlink()
+            Path(boosted_file).rename(output_file)
+            print(f"  -> {output_file} (volume boosted 1.8x)")
+        else:
+            print(f"  -> {output_file} (volume boost failed, using original)")
 
     # Clean up segment files
     for f in seg_files:
@@ -185,13 +242,13 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MODE
 
     if mode not in MODELS:
-        print(f"Usage: python process.py [voice_design|base] [voice_name]")
+        print(f"Usage: python process.py [voice_design|base|cosyvoice3|moss_nano|moss_local] [voice_name]")
         print(f"  Modes: {', '.join(MODELS)}")
-        print(f"  Voices (base mode only): {', '.join(VOICE_PROFILES)}")
+        print(f"  Voices (base/cosyvoice3/moss_* mode only): {', '.join(VOICE_PROFILES)}")
         sys.exit(1)
 
     voice = DEFAULT_VOICE
-    if mode == "base" and len(sys.argv) > 2:
+    if mode in ("base", "cosyvoice3", "moss_nano", "moss_local") and len(sys.argv) > 2:
         voice = sys.argv[2]
         if voice not in VOICE_PROFILES:
             print(f"Unknown voice: {voice}. Available: {', '.join(VOICE_PROFILES)}")
@@ -208,7 +265,7 @@ def main():
 
     model_name = MODELS[mode]
     print(f"\nLoading model: {model_name} (mode={mode})")
-    model = load_model(model_name)
+    model = None if mode in ("cosyvoice3", "moss_nano", "moss_local") else load_model(model_name)
 
     for filepath in pending:
         process_file(filepath, model, mode, voice)
