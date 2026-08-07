@@ -8,5 +8,8 @@ dependencies = [
     "mlx-audio>=0.3.0",
 ]
 
+[tool.poetry]
+package-mode = false
+
 [tool.uv]
 prerelease = "allow"

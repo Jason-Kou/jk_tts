@@ -28,6 +28,13 @@ uv sync
 |------|------|------|----------|
 | `base`（默认） | Qwen3-TTS-Base | 声音克隆：3 秒参考音频即可复刻音色 | 用自己的声音生成语音 |
 | `voice_design` | Qwen3-TTS-VoiceDesign | 文字描述生成声音（无需参考音频） | 自由设计声音风格 |
+| `cosyvoice3` | Fun-CosyVoice3-0.5B | 本地 PyTorch 后端，中文中长旁白稳定性测试 | 与 Qwen3-TTS 做视频旁白效果对比 |
+| `moss_nano` | MOSS-TTS-Nano-100M | MLX 后端，48 kHz 立体声，Mac 上速度快、内存低 | 推荐的 MOSS-TTS Mac 测试模式 |
+| `moss_local` | MOSS-TTS-Local-Transformer | MLX 后端，1.7B，更正式但很慢、占内存高 | 质量对比或离线慢速测试 |
+
+`cosyvoice3` 模式默认复用本机 `/Users/jk-agent-mac/3_coding/CosyVoice` 中已下载的 Fun-CosyVoice3 模型和独立 Python 环境；可用 `COSYVOICE_REPO`、`COSYVOICE_PYTHON`、`COSYVOICE3_MODEL_DIR` 覆盖路径。
+
+`moss_nano` / `moss_local` 模式默认使用本项目的独立环境 `.venv-moss`，避免影响现有 Qwen3-TTS 依赖；可用 `MOSS_TTS_PYTHON`、`MOSS_TTS_NANO_MODEL`、`MOSS_TTS_LOCAL_MODEL` 覆盖路径或模型。MOSS 模式需要参考音频，推荐先用 `official_female`。
 
 ## 使用
 
@@ -66,6 +73,27 @@ uv run python -m mlx_audio.tts.generate \
   --text "Hello, this is a test." \
   --ref-audio voices/jason.wav \
   --ref-text "大家好,我是Jason.欢迎回到我的频道.今天给大家讲一段Tesla的故事"
+
+# Fun-CosyVoice3 comparison backend
+uv run python tts_api.py \
+  --mode cosyvoice3 \
+  --voice jason \
+  --text "这是一个本地 CosyVoice 三代旁白测试。" \
+  --output output/cosyvoice3_test.wav
+
+# MOSS-TTS Nano, recommended for Mac comparison
+uv run python tts_api.py \
+  --mode moss_nano \
+  --voice official_female \
+  --text "这是一个本地 MOSS TTS Nano 旁白测试。" \
+  --output output/moss_nano_test.wav
+
+# MOSS-TTS Local Transformer, slower 1.7B comparison
+uv run python tts_api.py \
+  --mode moss_local \
+  --voice official_female \
+  --text "这是一个本地 MOSS TTS Local Transformer 旁白测试。" \
+  --output output/moss_local_test.wav
 ```
 
 ## 添加新声音
