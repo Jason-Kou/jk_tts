@@ -130,6 +130,12 @@ EN_DIGITS = {"0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
              "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine"}
 CN_DIGITS = "零一二三四五六七八九"
 
+EN_ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+           "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+           "sixteen", "seventeen", "eighteen", "nineteen"]
+EN_TENS = ["", "", "twenty", "thirty", "forty", "fifty",
+           "sixty", "seventy", "eighty", "ninety"]
+
 CJK = re.compile(r"[一-鿿]")
 
 
@@ -156,10 +162,34 @@ def spell(letters: str, lang: str) -> str:
 
 
 def say_digits(d: str, lang: str) -> str:
-    """67 -> six seven / 六七 -- model numbers are read digit by digit"""
+    """67 -> six seven / 六七 -- one digit at a time"""
     if lang == "en":
         return " ".join(EN_DIGITS[c] for c in d)
     return "".join(CN_DIGITS[int(c)] for c in d)
+
+
+def en_under_100(n: int) -> str:
+    if n < 20:
+        return EN_ONES[n]
+    tens, ones = divmod(n, 10)
+    return EN_TENS[tens] + (f" {EN_ONES[ones]}" if ones else "")
+
+
+def say_model_number(d: str, lang: str) -> str:
+    """The number in a model code, said the way a rep says it out loud:
+    IP400 -> four hundred, ZT-118 -> one eighteen, JTD-2860 -> twenty eight sixty.
+    Chinese keeps digit-by-digit, which is how model codes are read in zh.
+    """
+    if lang != "en" or len(d) > 4 or d.startswith("0"):
+        return say_digits(d, lang)   # 0-padded or too long to say as a number
+    if len(d) <= 2:
+        return en_under_100(int(d))
+    head, tail = en_under_100(int(d[:-2])), d[-2:]
+    if tail == "00":
+        return f"{head} hundred"
+    if tail[0] == "0":
+        return f"{head} oh {EN_ONES[int(tail[1])]}"   # 2805 -> twenty eight oh five
+    return f"{head} {en_under_100(int(tail))}"
 
 
 def cn_number(n: int) -> str:
@@ -307,7 +337,7 @@ def normalize(text: str, lang: str | None = None,
 
     # 3. model codes -- JTD-2860, HDMI2.1, RTX4090, 8K60
     sub(r"(?<![A-Za-z0-9-])([A-Za-z]{2,6})[-–]?(\d{1,6})(\.\d)?(?![A-Za-z0-9-])",
-        lambda m: f"{spell(m.group(1), lang)} {say_digits(m.group(2), lang)}"
+        lambda m: f"{spell(m.group(1), lang)} {say_model_number(m.group(2), lang)}"
                   + ((("点" + CN_DIGITS[int(m.group(3)[1])]) if lang == "zh"
                       else " point " + EN_DIGITS[m.group(3)[1]]) if m.group(3) else ""))
 
@@ -384,9 +414,21 @@ def self_check() -> None:
     en = "The AES67 spec and JTD-2860 both do HDMI2.1"
     t, lang, _, _ = normalize(en)
     assert lang == "en"
-    assert t == ("The A-E-S six seven spec and J-T-D two eight six zero "
+    assert t == ("The A-E-S six seven spec and J-T-D twenty eight sixty "
                  "both do H-D-M-I two point one"), t
     assert not CJK.search(t), "English script must never get Chinese readings"
+
+    # a model number is spoken as a number, not spelled out digit by digit
+    assert say_model_number("400", "en") == "four hundred"
+    assert say_model_number("118", "en") == "one eighteen"
+    assert say_model_number("487", "en") == "four eighty seven"
+    assert say_model_number("2860", "en") == "twenty eight sixty"
+    assert say_model_number("2805", "en") == "twenty eight oh five"
+    assert say_model_number("2800", "en") == "twenty eight hundred"
+    assert say_model_number("12", "en") == "twelve"
+    assert say_model_number("06", "en") == "zero six", "a leading zero is a digit string"
+    assert say_model_number("123456", "en") == "one two three four five six"
+    assert say_model_number("2860", "zh") == "二八六零", "zh reads model codes digit by digit"
 
     t, _, _, _ = normalize("Chroma is 4:4:4 here, EDID passthrough over eARC")
     assert t == "Chroma is four four four here, E-D-I-D passthrough over E-A-R-C", t
