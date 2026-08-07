@@ -77,6 +77,7 @@ LEXICON = {
         "i.e.": "that is",
         "etc.": "et cetera",
         "AV": "A-V",    # "av" as a word otherwise
+        "URL": "U-R-L",
         "IP": "I-P",
         "HDMI": "H-D-M-I",
         "AI": "AI",     # listed so it is not flagged for review
