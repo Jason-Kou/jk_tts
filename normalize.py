@@ -80,6 +80,7 @@ LEXICON = {
         "URL": "U-R-L",
         "IP": "I-P",
         "HDMI": "H-D-M-I",
+        "HDBaseT": "H-D base-T",   # a trailing lone "T" glues onto the next acronym
         "AI": "AI",     # listed so it is not flagged for review
         "CEO": "CEO",
         "API": "API",
@@ -121,6 +122,13 @@ SPELL_OUT = {"AES", "EDID", "ARC", "CEC", "POE", "SDR", "HDR", "RAG", "SAM", "AR
 # zh only: an English TTS reads these correctly on its own.
 ZH_UNITS = {"Hz": "赫兹", "kHz": "千赫", "MHz": "兆赫", "GHz": "吉赫",
             "W": "瓦", "kW": "千瓦", "V": "伏"}
+
+# en only, matched case-insensitively. A number and its unit are one spoken word
+# group -- the voice must not breathe between them. The readings are what an
+# English TTS already says; the point is the hyphen, not the spelling.
+EN_SPEC_UNITS = {"k": "K", "hz": "hertz", "hertz": "hertz", "khz": "kilohertz",
+                 "mhz": "megahertz", "ghz": "gigahertz", "gbps": "gigabits",
+                 "fps": "F-P-S", "nits": "nits", "bit": "bit"}
 
 # Tags that open a spoken block. Anything under another [tag], a heading,
 # a rule or a table row is treated as production notes, not speech.
@@ -190,6 +198,17 @@ def say_model_number(d: str, lang: str) -> str:
     if tail[0] == "0":
         return f"{head} oh {EN_ONES[int(tail[1])]}"   # 2805 -> twenty eight oh five
     return f"{head} {en_under_100(int(tail))}"
+
+
+def en_number(n: int) -> str:
+    """60 -> sixty, 120 -> one hundred twenty. A value, not a model code.
+    Four digits and up stay numeric -- rare in a spec, and the voice reads them."""
+    if n < 100:
+        return en_under_100(n)
+    if n >= 1000:
+        return str(n)
+    hundreds, rest = divmod(n, 100)
+    return f"{EN_ONES[hundreds]} hundred" + (f" {en_under_100(rest)}" if rest else "")
 
 
 def cn_number(n: int) -> str:
@@ -325,6 +344,22 @@ def normalize(text: str, lang: str | None = None,
 
         text = re.sub(pattern, _r, text, flags=flags)
 
+    # 0. en: "4K 60Hz" is one compound modifier, so hyphenate the whole run.
+    #    Left alone the voice breathes after every token and the spec falls apart.
+    #    Runs before the lexicon so a spec never needs a hand-written entry.
+    if lang == "en":
+        # a matrix size is a word group too, and every AV matrix is named one
+        sub(r"(?<![A-Za-z0-9-])(\d{1,2})[xX](\d{1,2})(?![A-Za-z0-9-])",
+            lambda m: f"{en_number(int(m.group(1)))}-by-{en_number(int(m.group(2)))}")
+
+        units = "|".join(sorted(EN_SPEC_UNITS, key=len, reverse=True))
+        one = rf"\d{{1,4}}\s?(?:{units})"
+        sub(rf"(?<![A-Za-z0-9-])({one})(?:\s+{one})*(?![A-Za-z0-9-])",
+            lambda m: "-".join(
+                f"{en_number(int(n))}-{EN_SPEC_UNITS[u.lower()]}"
+                for n, u in re.findall(rf"(\d{{1,4}})\s?({units})", m.group(0), re.I)),
+            flags=re.I)
+
     # 1. lexicon, longest term first so AES67 wins over AES
     for term in sorted(lexicon, key=len, reverse=True):
         sub(rf"(?<![A-Za-z0-9]){re.escape(term)}(?![A-Za-z0-9])",
@@ -353,6 +388,13 @@ def normalize(text: str, lang: str | None = None,
                                  else m.group(1).replace(".", "点")))
         sub(rf"(\d+)\s?({'|'.join(sorted(ZH_UNITS, key=len, reverse=True))})(?![A-Za-z])",
             lambda m: cn_number(int(m.group(1))) + ZH_UNITS[m.group(2)])
+
+    if lang == "en":
+        # 6. two spelled-out acronyms back to back run together -- "H-D base-T
+        #    H-D-M-I" came back from ASR as "HDBase THDMI". A comma splits them.
+        #    Only fires when the next token also starts a spelling, so an acronym
+        #    followed by an ordinary word ("A-E-S six seven") keeps its flow.
+        sub(r"(\S*[A-Za-z][-.][A-Z][-.]?)(?= +[A-Z][-.])", lambda m: m.group(1) + ",")
 
     text = re.sub(r"(?<=[A-Z]\.)\.", "", text)   # "P.O.E.." -> "P.O.E."
 
@@ -453,6 +495,19 @@ def self_check() -> None:
     assert laid == "One.\n\nTwo!\n\nThree?\n\nDone.", laid
     assert one_sentence_per_paragraph("HDMI two point one is fine.") == \
         "HDMI two point one is fine."
+
+    # a spec run is one hyphenated word group, adjacent spelled acronyms are split
+    assert en_number(60) == "sixty" and en_number(120) == "one hundred twenty"
+    assert en_number(100) == "one hundred" and en_number(4000) == "4000"
+    t, _, _, risky = normalize("The 4K 60Hz HDBaseT HDMI Matrix Extender is here.")
+    assert t == ("The four-K-sixty-hertz H-D base-T, H-D-M-I Matrix Extender is here."), t
+    assert not risky, f"a hyphenated spec must not be re-asked: {risky}"
+    t, _, _, _ = normalize("A 120 Hz panel and a 10bit 4K feed over HDBaseT.")
+    assert t == ("A one hundred twenty-hertz panel and a ten-bit-four-K feed "
+                 "over H-D base-T."), t
+    assert normalize("Runs at 60Hz.")[0] == "Runs at sixty-hertz."
+    assert normalize("A 4x4 matrix and a 16X16 one")[0] == \
+        "A four-by-four matrix and a sixteen-by-sixteen one"
 
     _, _, _, done = normalize("Use a PoE-enabled switch and an eARC-capable display.")
     assert not done, f"already-spelled tokens must not be re-asked: {done}"
