@@ -63,9 +63,11 @@ LEXICON = {
         "eARC": "E-A-R-C",   # "E-ARC" came back from ASR as "ER key"
         "OAuth": "O-auth",
         "PoE": "P-O-E",
+        "PoC": "P-O-C",
         "RTP": "R-T-P",
         "CAT5e": "cat five E",
         "CAT6": "cat six",
+        "CAT": "cat",   # "CAT cable" is the word, not C-A-T; keeps it off the ask list
         "SaaS": "sass",
         "SQL": "sequel",
         "JSON": "jason",
@@ -348,8 +350,9 @@ def normalize(text: str, lang: str | None = None,
     #    Left alone the voice breathes after every token and the spec falls apart.
     #    Runs before the lexicon so a spec never needs a hand-written entry.
     if lang == "en":
-        # a matrix size is a word group too, and every AV matrix is named one
-        sub(r"(?<![A-Za-z0-9-])(\d{1,2})[xX](\d{1,2})(?![A-Za-z0-9-])",
+        # a matrix size is a word group too, and every AV matrix is named one.
+        # "8-by-8" is already spelled the spoken way but keeps its digits.
+        sub(r"(?<![A-Za-z0-9-])(\d{1,2})(?:[xX]|-by-)(\d{1,2})(?![A-Za-z0-9-])",
             lambda m: f"{en_number(int(m.group(1)))}-by-{en_number(int(m.group(2)))}")
 
         units = "|".join(sorted(EN_SPEC_UNITS, key=len, reverse=True))
@@ -508,6 +511,9 @@ def self_check() -> None:
     assert normalize("Runs at 60Hz.")[0] == "Runs at sixty-hertz."
     assert normalize("A 4x4 matrix and a 16X16 one")[0] == \
         "A four-by-four matrix and a sixteen-by-sixteen one"
+    t, _, _, sized = normalize("The 8-by-8 matrix ships with PoC.")
+    assert t == "The eight-by-eight matrix ships with P-O-C.", t
+    assert not sized, sized
 
     _, _, _, done = normalize("Use a PoE-enabled switch and an eARC-capable display.")
     assert not done, f"already-spelled tokens must not be re-asked: {done}"
