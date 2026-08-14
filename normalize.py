@@ -268,8 +268,13 @@ def strip_markdown(text: str) -> str:
 def one_sentence_per_paragraph(text: str) -> str:
     """process.py only groups on blank lines and never splits on an English
     period, so a paragraph of English prose reaches the model as one oversized
-    segment. Hand it sentences it can pack itself."""
-    parts = re.split(r"(?<=[.!?。！？；])(?<![A-Z]\.)\s+(?=[A-Z\u4e00-\u9fff])",
+    segment. Hand it sentences it can pack itself.
+
+    The lookbehind keeps a dotted initial whole ("R.T.P. Config"); it needs the
+    dot *before* the letter, or a hyphen spelling that ends a sentence ("with
+    P-O-C. You can...") reads as an initial and the next sentence never splits.
+    """
+    parts = re.split(r"(?<=[.!?。！？；])(?<![.\s][A-Z]\.)\s+(?=[A-Z\u4e00-\u9fff])",
                      text.replace("\n", " "))
     return "\n\n".join(p.strip() for p in parts if p.strip())
 
@@ -498,6 +503,8 @@ def self_check() -> None:
     assert laid == "One.\n\nTwo!\n\nThree?\n\nDone.", laid
     assert one_sentence_per_paragraph("HDMI two point one is fine.") == \
         "HDMI two point one is fine."
+    assert one_sentence_per_paragraph("Ships with P-O-C. You wire one cable.") == \
+        "Ships with P-O-C.\n\nYou wire one cable.", "a hyphen spelling is not an initial"
 
     # a spec run is one hyphenated word group, adjacent spelled acronyms are split
     assert en_number(60) == "sixty" and en_number(120) == "one hundred twenty"
