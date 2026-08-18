@@ -86,6 +86,13 @@ uv run python tts_api.py \
   --voice official_female \
   --text "这是一个本地 MOSS TTS Local Transformer 旁白测试。" \
   --output output/moss_local_test.wav
+
+# Service-safe input (text stays out of the process argument list)
+uv run python tts_api.py \
+  --mode voice_design \
+  --voice official_female \
+  --text-file /tmp/tts-input.txt \
+  --output output/service-safe.wav
 ```
 
 ## 添加新声音

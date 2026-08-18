@@ -2,6 +2,7 @@
 """
 Simple CLI wrapper for jk_tts - generates audio from text input.
 Usage: uv run python tts_api.py --text "你好" --output /tmp/output.wav [--mode base] [--voice jason]
+       uv run python tts_api.py --text-file /tmp/input.txt --output /tmp/output.wav
 """
 
 import argparse
@@ -40,9 +41,10 @@ VOICE_PROFILES = {
 
 DEFAULT_INSTRUCT = "A cheerful young female voice with clear pronunciation and moderate speed"
 MAX_SEGMENT_CHARS = 200
+MAX_TEXT_FILE_BYTES = 20_000
 
 
-def split_text(text: str) -> list[str]:
+def split_text(text: str, max_segment_chars: int = MAX_SEGMENT_CHARS) -> list[str]:
     import re
     paragraphs = re.split(r"\n\s*\n", text)
     paragraphs = [p.strip().replace("\n", "") for p in paragraphs if p.strip()]
@@ -50,8 +52,8 @@ def split_text(text: str) -> list[str]:
     segments = []
     buffer = ""
     for para in paragraphs:
-        if len(para) <= MAX_SEGMENT_CHARS:
-            if buffer and len(buffer) + len(para) > MAX_SEGMENT_CHARS:
+        if len(para) <= max_segment_chars:
+            if buffer and len(buffer) + len(para) > max_segment_chars:
                 segments.append(buffer)
                 buffer = para
             else:
@@ -63,7 +65,7 @@ def split_text(text: str) -> list[str]:
             # Split long paragraphs at sentence boundaries
             parts = re.split(r"(?<=[。！？；\?\!])", para)
             for sentence in [p.strip() for p in parts if p.strip()]:
-                if buffer and len(buffer) + len(sentence) > MAX_SEGMENT_CHARS:
+                if buffer and len(buffer) + len(sentence) > max_segment_chars:
                     segments.append(buffer)
                     buffer = sentence
                 else:
@@ -73,15 +75,49 @@ def split_text(text: str) -> list[str]:
     return segments
 
 
+def read_text_input(text: str | None, text_file: str | None) -> str:
+    """Read bounded UTF-8 input without placing file contents in argv or logs."""
+    if text is not None:
+        value = text
+    else:
+        path = Path(text_file or "")
+        if not path.exists() or path.is_symlink() or not path.is_file():
+            raise ValueError("--text-file must be a regular, non-symbolic-link file")
+        if path.stat().st_size > MAX_TEXT_FILE_BYTES:
+            raise ValueError(f"--text-file exceeds {MAX_TEXT_FILE_BYTES} bytes")
+        value = path.read_text(encoding="utf-8")
+    value = value.strip()
+    if not value:
+        raise ValueError("text must not be empty")
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description="jk_tts CLI")
-    parser.add_argument("--text", required=True, help="Text to synthesize")
+    text_source = parser.add_mutually_exclusive_group(required=True)
+    text_source.add_argument("--text", help="Text to synthesize")
+    text_source.add_argument("--text-file", help="UTF-8 text file to synthesize (safer for services)")
     parser.add_argument("--output", required=True, help="Output audio file path (.wav or .mp3)")
     parser.add_argument("--mode", default="base", choices=["base", "voice_design", "cosyvoice3", "moss_local"])
     parser.add_argument("--voice", default="jason", help="Voice profile name (for base/cosyvoice3/moss_* mode)")
+    parser.add_argument(
+        "--max-segment-chars",
+        type=int,
+        default=MAX_SEGMENT_CHARS,
+        help="Maximum characters per synthesis segment (default: 200)",
+    )
     args = parser.parse_args()
 
-    segments = split_text(args.text)
+    if not 40 <= args.max_segment_chars <= MAX_SEGMENT_CHARS:
+        parser.error(
+            f"--max-segment-chars must be between 40 and {MAX_SEGMENT_CHARS}"
+        )
+
+    try:
+        text = read_text_input(args.text, args.text_file)
+    except (OSError, UnicodeError, ValueError) as error:
+        parser.error(str(error))
+    segments = split_text(text, args.max_segment_chars)
     print(f"Split into {len(segments)} segment(s)")
 
     if args.mode in ("cosyvoice3", "moss_local"):
@@ -111,7 +147,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         seg_files = []
         for i, segment in enumerate(segments):
-            print(f"  Generating segment {i+1}/{len(segments)}: {segment[:60]}...")
+            print(f"  Generating segment {i+1}/{len(segments)}")
             seg_prefix = str(Path(tmpdir) / f"seg_{i:03d}")
 
             kwargs = {
