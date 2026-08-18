@@ -34,7 +34,7 @@ VOICE_PROFILES = {
         "ref_text": "大家好,我是Jason.欢迎回到我的频道.今天给大家讲一段Tesla的故事",
     },
     "official_female": {
-        "ref_audio": "/Users/jk-agent-mac/3_coding/CosyVoice/asset/zero_shot_prompt.wav",
+        "ref_audio": str(VOICES_DIR / "official_female.wav"),
         "ref_text": "希望你以后能够做的比我还好呦。",
     },
 }

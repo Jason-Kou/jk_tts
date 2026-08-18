@@ -47,7 +47,7 @@ VOICE_PROFILES = {
         "lang": "english",
     },
     "official_female": {
-        "ref_audio": "/Users/jk-agent-mac/3_coding/CosyVoice/asset/zero_shot_prompt.wav",
+        "ref_audio": str(VOICES_DIR / "official_female.wav"),
         "ref_text": "希望你以后能够做的比我还好呦。",
     },
 }
