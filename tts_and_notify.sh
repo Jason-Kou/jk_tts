@@ -1,7 +1,7 @@
 #!/bin/bash
 # tts_and_notify.sh - Run TTS, convert to OGG, output result path
 # Usage: ./tts_and_notify.sh [mode] [voice]
-#   mode: voice_design (default, female) | base | cosyvoice3 | moss_nano | moss_local
+#   mode: voice_design (default, female) | base | cosyvoice3 | moss_local
 #   voice: for base/cosyvoice3/moss_* mode, e.g. "jason" or "official_female"
 # 
 # Example:
@@ -9,7 +9,6 @@
 #   ./tts_and_notify.sh base jason         # Jason's voice
 #   ./tts_and_notify.sh voice_design       # female voice (explicit)
 #   ./tts_and_notify.sh cosyvoice3 jason   # Fun-CosyVoice3 local backend
-#   ./tts_and_notify.sh moss_nano official_female  # MOSS-TTS Nano on Mac
 #
 # Output: prints OGG file path(s) to stdout when done
 # Exit codes: 0=success, 1=no input files, 2=tts failed, 3=convert failed

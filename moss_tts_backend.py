@@ -10,14 +10,11 @@ from typing import Iterable
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_MOSS_PYTHON = Path(os.getenv("MOSS_TTS_PYTHON", str(ROOT / ".venv-moss" / "bin" / "python")))
-DEFAULT_MOSS_NANO_MODEL = os.getenv("MOSS_TTS_NANO_MODEL", "mlx-community/MOSS-TTS-Nano-100M")
 DEFAULT_MOSS_LOCAL_MODEL = os.getenv("MOSS_TTS_LOCAL_MODEL", "OpenMOSS-Team/MOSS-TTS-Local-Transformer")
 DEFAULT_MOSS_LANG_CODE = os.getenv("MOSS_TTS_LANG_CODE", "zh")
 
 
 def moss_model_for_mode(mode: str) -> str:
-    if mode == "moss_nano":
-        return DEFAULT_MOSS_NANO_MODEL
     if mode == "moss_local":
         return DEFAULT_MOSS_LOCAL_MODEL
     raise ValueError(f"unsupported MOSS mode: {mode}")

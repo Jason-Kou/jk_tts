@@ -24,7 +24,6 @@ MODELS = {
     "voice_design": "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16",
     "base": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
     "cosyvoice3": "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
-    "moss_nano": "mlx-community/MOSS-TTS-Nano-100M",
     "moss_local": "OpenMOSS-Team/MOSS-TTS-Local-Transformer",
 }
 
@@ -78,14 +77,14 @@ def main():
     parser = argparse.ArgumentParser(description="jk_tts CLI")
     parser.add_argument("--text", required=True, help="Text to synthesize")
     parser.add_argument("--output", required=True, help="Output audio file path (.wav or .mp3)")
-    parser.add_argument("--mode", default="base", choices=["base", "voice_design", "cosyvoice3", "moss_nano", "moss_local"])
+    parser.add_argument("--mode", default="base", choices=["base", "voice_design", "cosyvoice3", "moss_local"])
     parser.add_argument("--voice", default="jason", help="Voice profile name (for base/cosyvoice3/moss_* mode)")
     args = parser.parse_args()
 
     segments = split_text(args.text)
     print(f"Split into {len(segments)} segment(s)")
 
-    if args.mode in ("cosyvoice3", "moss_nano", "moss_local"):
+    if args.mode in ("cosyvoice3", "moss_local"):
         voice_profile = VOICE_PROFILES.get(args.voice)
         if voice_profile is None:
             print(f"Warning: voice '{args.voice}' not found, using default")

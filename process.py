@@ -28,7 +28,6 @@ MODELS = {
     "voice_design": "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16",
     "base": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-bf16",
     "cosyvoice3": "FunAudioLLM/Fun-CosyVoice3-0.5B-2512",
-    "moss_nano": "mlx-community/MOSS-TTS-Nano-100M",
     "moss_local": "OpenMOSS-Team/MOSS-TTS-Local-Transformer",
 }
 
@@ -147,7 +146,7 @@ def process_file(filepath: Path, model, mode: str, voice: str = DEFAULT_VOICE):
 
     seg_files = [OUTPUT_DIR / f"{stem}_seg_{i:03d}.wav" for i in range(len(segments))]
 
-    if mode in ("cosyvoice3", "moss_nano", "moss_local"):
+    if mode in ("cosyvoice3", "moss_local"):
         missing_segments = []
         missing_files = []
         for segment, seg_file in zip(segments, seg_files):
@@ -207,7 +206,7 @@ def process_file(filepath: Path, model, mode: str, voice: str = DEFAULT_VOICE):
     print(f"\n  Merging {len(seg_files)} segment(s)...")
     output_file = str(OUTPUT_DIR / f"{stem}.wav")
 
-    if mode in ("cosyvoice3", "moss_nano", "moss_local"):
+    if mode in ("cosyvoice3", "moss_local"):
         merge_wavs_with_ffmpeg(seg_files, Path(output_file), volume=1.0)
         print(f"  -> {output_file} ({mode}, no volume boost)")
     else:
@@ -242,13 +241,13 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_MODE
 
     if mode not in MODELS:
-        print(f"Usage: python process.py [voice_design|base|cosyvoice3|moss_nano|moss_local] [voice_name]")
+        print(f"Usage: python process.py [voice_design|base|cosyvoice3|moss_local] [voice_name]")
         print(f"  Modes: {', '.join(MODELS)}")
         print(f"  Voices (base/cosyvoice3/moss_* mode only): {', '.join(VOICE_PROFILES)}")
         sys.exit(1)
 
     voice = DEFAULT_VOICE
-    if mode in ("base", "cosyvoice3", "moss_nano", "moss_local") and len(sys.argv) > 2:
+    if mode in ("base", "cosyvoice3", "moss_local") and len(sys.argv) > 2:
         voice = sys.argv[2]
         if voice not in VOICE_PROFILES:
             print(f"Unknown voice: {voice}. Available: {', '.join(VOICE_PROFILES)}")
@@ -265,7 +264,7 @@ def main():
 
     model_name = MODELS[mode]
     print(f"\nLoading model: {model_name} (mode={mode})")
-    model = None if mode in ("cosyvoice3", "moss_nano", "moss_local") else load_model(model_name)
+    model = None if mode in ("cosyvoice3", "moss_local") else load_model(model_name)
 
     for filepath in pending:
         process_file(filepath, model, mode, voice)
