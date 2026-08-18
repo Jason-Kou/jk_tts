@@ -37,7 +37,7 @@ LEARNED_PATH = Path(__file__).parent / "lexicon_learned.json"
 LLM_BACKENDS = {
     "claude": ["claude", "-p", "--model", "haiku"],
     "codex": ["codex", "exec", "--skip-git-repo-check", "--color", "never"],
-    "ollama": ["ollama", "run", "qwen3.5:9b"],
+    "ollama": ["ollama", "run", "qwen3.5:9b-mlx"],
 }
 
 LLM_PROMPT = """You prepare scripts for a text-to-speech engine that will read \
