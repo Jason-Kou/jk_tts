@@ -60,7 +60,9 @@ Terms: {terms}"""
 LEXICON = {
     "en": {
         "AES67": "A-E-S six seven",
-        "eARC": "E-A-R-C",   # "E-ARC" came back from ASR as "ER key"
+        # said as words, not spelled out. Scripts write them any which way.
+        "eARC": "e-ark", "Earc": "e-ark", "EARC": "e-ark",
+        "ARC": "ark", "Arc": "ark", "arc": "ark",
         "OAuth": "O-auth",
         "PoE": "P-O-E",
         "PoC": "P-O-C",
@@ -90,7 +92,7 @@ LEXICON = {
     },
     "zh": {
         "AES67": "A E S 六七",
-        "eARC": "E A R C",
+        "eARC": "e ark", "Earc": "e ark", "ARC": "ark", "Arc": "ark",
         "OAuth": "O Auth",
         "SaaS": "萨斯",
         "API": "A P I",
@@ -119,7 +121,7 @@ LEXICON = {
 LETTER_SEP = "-"
 
 # Acronyms a voice would slur into a word instead of spelling out.
-SPELL_OUT = {"AES", "EDID", "ARC", "CEC", "POE", "SDR", "HDR", "RAG", "SAM", "ARM"}
+SPELL_OUT = {"AES", "EDID", "CEC", "POE", "SDR", "HDR", "RAG", "SAM", "ARM"}
 
 # zh only: an English TTS reads these correctly on its own.
 ZH_UNITS = {"Hz": "赫兹", "kHz": "千赫", "MHz": "兆赫", "GHz": "吉赫",
@@ -481,7 +483,7 @@ def self_check() -> None:
     assert say_model_number("2860", "zh") == "二八六零", "zh reads model codes digit by digit"
 
     t, _, _, _ = normalize("Chroma is 4:4:4 here, EDID passthrough over eARC")
-    assert t == "Chroma is four four four here, E-D-I-D passthrough over E-A-R-C", t
+    assert t == "Chroma is four four four here, E-D-I-D passthrough over e-ark", t
 
     # English prose the engine already reads correctly stays untouched
     t, _, subs, _ = normalize("It went up 18% last quarter, roughly 60 watts.")
