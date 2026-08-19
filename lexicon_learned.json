@@ -7,7 +7,11 @@
     "JTECH-4K88-EX2": "J-Tech four-K eighty-eight E-X two",
     "RCA": "R-C-A",
     "2-channel": "two channel",
-    "5.1-channel": "five point one channel"
+    "5.1-channel": "five point one channel",
+    "1080p": "ten eighty P",
+    "Cat6A": "Cat six A",
+    "TWO": "two",
+    "5-gigabit": "five gigabit"
   },
   "zh": {}
 }
