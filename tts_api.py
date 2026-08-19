@@ -33,6 +33,15 @@ VOICE_PROFILES = {
         "ref_audio": str(VOICES_DIR / "jason.wav"),
         "ref_text": "大家好,我是Jason.欢迎回到我的频道.今天给大家讲一段Tesla的故事",
     },
+    "en_male": {   # ElevenLabs clone, ported from the CosyVoice pipeline
+        "ref_audio": str(VOICES_DIR / "en_male.wav"),
+        "ref_text": (
+            "Need to send HDMI audio to a soundbar, receiver, or speakers? "
+            "This 4K 60Hz HDMI audio extractor JTD-322 separates audio from your "
+            "HDMI signal while still passing video to your TV, monitor, or projector."
+        ),
+        "lang": "english",
+    },
     "official_female": {
         "ref_audio": str(VOICES_DIR / "official_female.wav"),
         "ref_text": "希望你以后能够做的比我还好呦。",
@@ -99,7 +108,7 @@ def main():
     text_source.add_argument("--text-file", help="UTF-8 text file to synthesize (safer for services)")
     parser.add_argument("--output", required=True, help="Output audio file path (.wav or .mp3)")
     parser.add_argument("--mode", default="base", choices=["base", "voice_design", "cosyvoice3", "moss_local"])
-    parser.add_argument("--voice", default="jason", help="Voice profile name (for base/cosyvoice3/moss_* mode)")
+    parser.add_argument("--voice", default="en_male", help="Voice profile name (for base/cosyvoice3/moss_* mode)")
     parser.add_argument(
         "--max-segment-chars",
         type=int,
@@ -124,7 +133,7 @@ def main():
         voice_profile = VOICE_PROFILES.get(args.voice)
         if voice_profile is None:
             print(f"Warning: voice '{args.voice}' not found, using default")
-            voice_profile = VOICE_PROFILES["jason"]
+            voice_profile = VOICE_PROFILES["en_male"]
 
         with tempfile.TemporaryDirectory() as tmpdir:
             seg_files = [Path(tmpdir) / f"seg_{i:03d}.wav" for i in range(len(segments))]
@@ -162,11 +171,12 @@ def main():
             if args.mode == "voice_design":
                 kwargs["instruct"] = DEFAULT_INSTRUCT
             elif args.mode == "base":
-                if args.voice in VOICE_PROFILES:
-                    kwargs.update(VOICE_PROFILES[args.voice])
-                else:
+                if args.voice not in VOICE_PROFILES:
                     print(f"Warning: voice '{args.voice}' not found, using default")
-                    kwargs.update(VOICE_PROFILES["jason"])
+                profile = dict(VOICE_PROFILES.get(args.voice, VOICE_PROFILES["en_male"]))
+                # an English voice narrating in chinese mode picks up an accent
+                kwargs["lang_code"] = profile.pop("lang", "chinese")
+                kwargs.update(profile)
 
             generate_audio(**kwargs)
             seg_file = Path(f"{seg_prefix}.wav")

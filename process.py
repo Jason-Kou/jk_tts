@@ -52,7 +52,7 @@ VOICE_PROFILES = {
 }
 
 DEFAULT_MODE = "base"
-DEFAULT_VOICE = "jason"
+DEFAULT_VOICE = "en_male"
 DEFAULT_INSTRUCT = "A cheerful young female voice with clear pronunciation and moderate speed"
 
 
