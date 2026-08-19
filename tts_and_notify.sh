@@ -20,14 +20,22 @@ cd "$(dirname "$0")"
 MODE="${1:-voice_design}"
 VOICE="${2:-}"
 
-# Check for input files
-INPUT_COUNT=$(ls input/*.txt 2>/dev/null | wc -l | tr -d ' ')
-if [ "$INPUT_COUNT" -eq 0 ]; then
-    echo "ERROR: No .txt files in input/" >&2
+# The files process.py will pick up: everything it has not already prefixed
+# with "finished_". Remember them now, so only this run's output gets converted.
+PENDING=()
+for txt in input/*.txt; do
+    [ -f "$txt" ] || continue
+    stem=$(basename "$txt" .txt)
+    case "$stem" in finished_*) continue ;; esac
+    PENDING+=("$stem")
+done
+
+if [ ${#PENDING[@]} -eq 0 ]; then
+    echo "ERROR: No unprocessed .txt files in input/" >&2
     exit 1
 fi
 
-echo "Starting TTS: mode=$MODE voice=$VOICE files=$INPUT_COUNT" >&2
+echo "Starting TTS: mode=$MODE voice=$VOICE files=${#PENDING[@]}" >&2
 
 # Run TTS (stderr only for progress, suppress stdout noise)
 if [ -n "$VOICE" ]; then
@@ -42,12 +50,12 @@ if [ $TTS_EXIT -ne 0 ]; then
     exit 2
 fi
 
-# Convert all new WAV files to OGG
+# Convert this run's WAV files to OGG
 OGG_FILES=()
-for wav in output/*.wav; do
-    [ -f "$wav" ] || continue
-    basename=$(basename "$wav" .wav)
-    ogg="/tmp/${basename}.ogg"
+for stem in "${PENDING[@]}"; do
+    wav="output/${stem}.wav"
+    [ -f "$wav" ] || { echo "WARNING: $wav was not produced" >&2; continue; }
+    ogg="/tmp/${stem}.ogg"
     if ffmpeg -i "$wav" -c:a libopus -b:a 64k "$ogg" -y >/dev/null 2>&1; then
         OGG_FILES+=("$ogg")
     else
