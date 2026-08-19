@@ -4,7 +4,10 @@
     "10GbE": "ten gig E",
     "ASIO": "ay ess eye oh",
     "TV": "T-V",
-    "JTECH-4K88-EX2": "J-Tech four-K eighty-eight E-X two"
+    "JTECH-4K88-EX2": "J-Tech four-K eighty-eight E-X two",
+    "RCA": "R-C-A",
+    "2-channel": "two channel",
+    "5.1-channel": "five point one channel"
   },
   "zh": {}
 }
